@@ -15,22 +15,76 @@
 #   - Data visualization (matplotlib)
 #   - Machine learning models (scikit-learn)
 # Do NOT train any model yet.
-import os
-import pandas as pd
-import numpy as np
+import os 
 import logging
+import pandas as pd 
+import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-
+from sklearn.metrics import mean_squared_error, r2_score 
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("exercise_2.log", mode='w', encoding="utf-8")
+        logging.FileHandler("exercise_02.log", mode='w', encoding="utf-8")
     ]
 )
+
+def plot_regression_3d(model, X, y, feature1="ENGINESIZE", feature2="FUELCONSUMPTION_COMB", filename:str=""):
+    """
+    Grafica en 3D la regresión lineal múltiple usando dos variables independientes
+    y la variable dependiente CO2EMISSIONS.
+    
+    Parameters:
+    - model: modelo entrenado (LinearRegression)
+    - X: DataFrame con las variables independientes
+    - y: Serie con la variable dependiente
+    - feature1, feature2: nombres de las columnas a graficar en los ejes X y Y
+    """
+    # Extraer valores
+    x1 = X[feature1].values
+    x2 = X[feature2].values
+    y_true = y.values
+
+    # Crear malla para superficie
+    x1_range = np.linspace(x1.min(), x1.max(), 30)
+    x2_range = np.linspace(x2.min(), x2.max(), 30)
+    x1_grid, x2_grid = np.meshgrid(x1_range, x2_range)
+
+    # Predecir CO2 en la malla (usando también CYLINDERS promedio)
+    cylinders_mean = X["CYLINDERS"].mean()
+    X_grid_data = np.c_[x1_grid.ravel(), np.full_like(x1_grid.ravel(), cylinders_mean), x2_grid.ravel()]
+    X_grid_df = pd.DataFrame(X_grid_data, columns=X.columns)
+    y_pred_grid = model.predict(X_grid_df).reshape(x1_grid.shape)
+
+    # Graficar
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Puntos reales
+    ax.scatter(x1, x2, y_true, color="blue", alpha=0.5, label="Datos reales")
+
+    # Superficie de predicción
+    ax.plot_surface(x1_grid, x2_grid, y_pred_grid, color="red", alpha=0.4)
+
+    # Etiquetas
+    ax.set_xlabel(feature1)
+    ax.set_ylabel(feature2)
+    ax.set_zlabel("CO2EMISSIONS")
+    ax.set_title("Regresión Lineal Múltiple en 3D")
+
+    plt.legend()
+    
+    if filename:
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        print(f"Gráfica guardada en {filename}")
+        
+    plt.show()
+    
+    
+
 # ------------------------------------------------------------
 # STEP 1: Load and inspect the dataset
 # ------------------------------------------------------------
@@ -40,19 +94,22 @@ logging.basicConfig(
 #   - Feature columns (independent variables)
 #   - Target column (dependent variable: CO2EMISSIONS)
 # Check data types and verify that there are no missing values.
-SOURCE_FILE = os.path.join(".", "inputs", "FuelConsumptionCo2.csv")
+SOURCE_FILE = os.path.join("inputs", "FuelConsumptionCo2.csv")
+OUT_FOLDER = os.path.join(".", "out")
+
 database = pd.read_csv(SOURCE_FILE)
-OUT_FOLDER =os.path.join('.', "out")
 
-logging.info("Archivo Procesado:{SOURCE_FILE}")
-X =  database[database["FUELCONSUMPTION_COMB"] != np.nan]["FUELCONSUMPTION_COMB"]
-y =  database[database["FUELCONSUMPTION_COMB"] != np.nan]["CO2EMISSIONS"]
+logging.info(f"Archivo procesado: {SOURCE_FILE}")
 
-logging.info(f"Variable independiente 'FUELCONSUMPTION_COMB'")
+X = database[database['FUELCONSUMPTION_COMB'] != np.nan]['FUELCONSUMPTION_COMB']
+Y = database[database['CO2EMISSIONS'] != np.nan]['CO2EMISSIONS']
+
+logging.info(f"Variable independiente 'FUELCONSUMPTION_COMB':")
 logging.info(f"\n{X}\n")
 
-logging.info(f"variable dependiente 'CO2EMISSIONS'")
-logging.info(f"\n{y}\n")
+logging.info(f"Variable dependiente 'CO2EMISSIONS':")
+logging.info(f"\n{Y}\n")
+
 # ------------------------------------------------------------
 # STEP 2: Select relevant variables
 # ------------------------------------------------------------
@@ -65,13 +122,12 @@ logging.info(f"\n{y}\n")
 # Clearly separate:
 #   - Input features (X)
 #   - Output variable (y)
-relevant_features =database[[
+relevant_features = database[[
     "ENGINESIZE",
     "CYLINDERS",
     "FUELCONSUMPTION_COMB",
     "CO2EMISSIONS"
 ]]
-
 
 # ============================================================
 # PART 1: SIMPLE LINEAR REGRESSION
@@ -85,10 +141,8 @@ relevant_features =database[[
 # Common choice:
 #   - FUELCONSUMPTION_COMB
 # Reshape the data if required by scikit-learn.
-
-X = relevant_features[relevant_features["FUELCONSUMPTION_COMB"] != np.nan]["FUELCONSUMPTION_COMB"]
-Y = relevant_features[relevant_features["FUELCONSUMPTION_COMB"] != np.nan]["CO2EMISSIONS"]
-
+X = relevant_features[relevant_features['FUELCONSUMPTION_COMB'] != np.nan]['FUELCONSUMPTION_COMB']
+Y = relevant_features[relevant_features['CO2EMISSIONS'] != np.nan]['CO2EMISSIONS']
 # ------------------------------------------------------------
 # STEP 4: Split data into training and testing sets
 # ------------------------------------------------------------
@@ -97,36 +151,37 @@ Y = relevant_features[relevant_features["FUELCONSUMPTION_COMB"] != np.nan]["CO2E
 #   - 80% training
 #   - 20% testing
 # Set a random_state to ensure reproducibility.
-X_train, X_test, y_train, y_test = train_test_split(
+X_train, X_test, Y_train, Y_test = train_test_split(
     X,
-    y,
+    Y,
     test_size=0.2,
     random_state=42
 )
-logging.info("X de pruebas generado")
+
+logging.info(f"X de entrenamiento generado.")
 logging.debug(f"\n{X_train}\n")
 
-logging.info("X de pruebas generado")
-logging.debug(f"\n{X_train}\n")
+logging.info(f"X de pruebas generado.")
+logging.debug(f"\n{X_test}\n")
 
-logging.info("X de pruebas generado")
-logging.debug(f"\n{y_test}\n")
+logging.info(f"Y de entrenamiento generado.")
+logging.debug(f"\n{Y_train}\n")
 
-logging.info("X de pruebas generado")
-logging.debug(f"\n{y_test}\n")
+logging.info(f"Y de pruebas generado.")
+logging.debug(f"\n{Y_test}\n")  
 
-plt.subplot(3, 2, 1)
-plt.scatter(X_train, y_train)
+plt.subplot(1,2,1)
+plt.scatter(x=X_train, y=Y_train)
 plt.title("Datos de entrenamiento")
-plt.xlabel("FUELCONSUMPTION_COMB")
-plt.ylabel("CO2EMISSIONS")
 plt.grid(True)
 
-plt.savefig(os.path.join(OUT_FOLDER,"entrenamiento.png"))
+plt.subplot(1,2,2)
+plt.scatter(x=X_test, y=Y_test)
+plt.title("Datos de pruebas")
+plt.grid(True)
+
+plt.savefig(os.path.join(OUT_FOLDER, "data_split.jpg"))
 plt.show()
-
-
-
 # ------------------------------------------------------------
 # STEP 5: Train the simple linear regression model
 # ------------------------------------------------------------
@@ -135,12 +190,14 @@ plt.show()
 # At this stage, the model should learn:
 #   - Intercept (β0)
 #   - Slope (β1)
-model =LinearRegression()
+model = LinearRegression()
 
 X_train = X_train.to_numpy().reshape(-1, 1)
 X_test = X_test.to_numpy().reshape(-1, 1)
-model.fit(X=X_train, y=y_train)
-logging.info("El modelo fue alimentado con 'X_train'.")
+
+model.fit(X=X_train, y=Y_train)
+
+logging.info("El modelo linear fue alimentado con 'X_train'.")
 
 # ------------------------------------------------------------
 # STEP 6: Analyze the simple linear regression model
@@ -152,8 +209,7 @@ logging.info("El modelo fue alimentado con 'X_train'.")
 #   - Explain how CO2 emissions change when the selected
 #     independent variable increases by one unit.
 logging.info(f"Intercept: {model.intercept_}")
-logging.info(f"coefficient: {model.coef_[0]}")
-
+logging.info(f"Coefficient: {model.coef_[0]}")
 
 # ------------------------------------------------------------
 # STEP 7: Evaluate the simple linear regression model
@@ -163,24 +219,24 @@ logging.info(f"coefficient: {model.coef_[0]}")
 #   - Mean Squared Error (MSE)
 #   - R² score
 # Comment on the quality of the model fit.
+y_pred = model.predict(X=X_test)
 
-y_pred =model.predict(X=X_test)
-logging.info(f"MSE: {mean_squared_error(y_true=y_test, y_pred=y_pred)}")
-logging.info(f"R2: {r2_score(y_true=y_test, y_pred=y_pred)}")
+logging.info(f"MSE: {mean_squared_error(y_true=Y_test, y_pred=y_pred)}")
+logging.info(f"R² {r2_score(y_true=Y_test, y_pred=y_pred)}")
 # ------------------------------------------------------------
 # STEP 8: Visualization
 # ------------------------------------------------------------
 # Create a scatter plot of the test data.
 # Overlay the regression line predicted by the model.
 # Label axes clearly and include a title.
-plt.scatter(x=X_test, y=y_test)
+plt.scatter(x=X_test, y=Y_test)
 plt.plot(X_test, y_pred)
-plt.xlabel("Fuel consumption (Combined)")
-plt.ylabel("CO2EMISSIONS")
-plt.title("Prediccion con regresion linear limpia")
+plt.xlabel("Fuel consumption (combined)")
+plt.ylabel("CO2 emissions")
+plt.title("Prediccion con regresion linear simple ")
 plt.grid(True)
 
-plt.savefig(os.path.join(OUT_FOLDER, "srl_model.png"))
+plt.savefig(os.path.join(OUT_FOLDER, "srl_model.jpg"))
 plt.show()
 # ============================================================
 # PART 2: MULTIPLE LINEAR REGRESSION
@@ -196,6 +252,11 @@ plt.show()
 #   - CYLINDERS
 #   - FUELCONSUMPTION_COMB
 # Define X as a matrix of features and y as CO2EMISSIONS.
+X_multiple = database[[
+    "ENGINESIZE",
+    "CYLINDERS",
+    "FUELCONSUMPTION_COMB",
+]]
 
 
 # ------------------------------------------------------------
@@ -204,7 +265,12 @@ plt.show()
 # Perform a new train-test split using the multi-feature dataset.
 # Use the same split ratio and random_state as before for
 # consistency and fair comparison.
-
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X_multiple,
+    Y,
+    test_size=0.2,
+    random_state=42
+)
 
 # ------------------------------------------------------------
 # STEP 11: Train the multiple linear regression model
@@ -214,6 +280,8 @@ plt.show()
 # The model will estimate:
 #   - One coefficient per feature
 #   - A single intercept term
+model_multiple = LinearRegression()
+model_multiple.fit(X=X_train, y=Y_train)
 
 
 # ------------------------------------------------------------
@@ -223,8 +291,9 @@ plt.show()
 # corresponding feature.
 # Interpret the meaning of each coefficient while assuming
 # all other variables remain constant.
-
-
+logging.info(f"Intercep: {model_multiple.intercept_}")
+for feature, coef in zip(X_multiple.columns, model_multiple.coef_):
+    logging.info(f"Coefficient of '{feature}' : {coef}")
 # ------------------------------------------------------------
 # STEP 13: Evaluate the multiple linear regression model
 # ------------------------------------------------------------
@@ -233,7 +302,10 @@ plt.show()
 #   - Mean Squared Error (MSE)
 #   - R² score
 # Compare these results with the simple linear regression model.
+y_pred = model_multiple.predict(X=X_test)
 
+logging.info(f"MSE: {mean_squared_error(y_true=Y_test, y_pred=y_pred)}")
+logging.info(f"R² {r2_score(y_true=Y_test, y_pred=y_pred)}")
 
 # ------------------------------------------------------------
 # STEP 14: Model comparison and discussion
@@ -243,3 +315,23 @@ plt.show()
 #   - Which variable has the strongest influence on CO2 emissions?
 #   - Why is multiple linear regression more suitable for this problem?
 #   - What assumptions does linear regression make?
+
+plot_regression_3d(model=model_multiple, X=X_test, y=Y_test,
+                   feature1="ENGINESIZE",
+                   feature2="FUELCONSUMPTION_COMB",
+                   filename=os.path.join(OUT_FOLDER, "MLR_3d_plot.png"))
+
+corr_features = database[[
+        "MODELYEAR",
+        "ENGINESIZE",
+        "CYLINDERS",
+        "FUELCONSUMPTION_CITY",
+        "FUELCONSUMPTION_HWY",
+        "FUELCONSUMPTION_COMB"
+]]
+
+                    
+
+correlation = corr_features.corr(method='pearson')
+logging.info(f"\n{correlation}")
+#multiple linear regration
